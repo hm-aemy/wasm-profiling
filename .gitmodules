@@ -1,0 +1,27 @@
+[submodule "wasmi/wasmi"]
+	path = wasmi/wasmi
+	url = https://github.com/wasmi-labs/wasmi.git
+[submodule "wasmi/libopencm3"]
+	path = wasmi/libopencm3
+	url = https://github.com/I-mikan-I/libopencm3
+[submodule "wasmi/embench-iot"]
+	path = wasmi/embench-iot
+	url = https://github.com/I-mikan-I/embench-iot.git
+[submodule "wamr/wasm-micro-runtime"]
+	path = wamr/wasm-micro-runtime
+	url = https://github.com/bytecodealliance/wasm-micro-runtime.git
+[submodule "wamr/libopencm3"]
+	path = wamr/libopencm3
+	url = https://github.com/I-mikan-I/libopencm3
+[submodule "wamr/embench-iot"]
+	path = wamr/embench-iot
+	url = https://github.com/I-mikan-I/embench-iot.git
+[submodule "wasm3/libopencm3"]
+	path = wasm3/libopencm3
+	url = https://github.com/I-mikan-I/libopencm3
+[submodule "wasm3/wasm3"]
+	path = wasm3/wasm3
+	url = git@github.com:I-mikan-I/wasm3.git
+[submodule "wasm3/embench-iot"]
+	path = wasm3/embench-iot
+	url = git@github.com:I-mikan-I/embench-iot.git

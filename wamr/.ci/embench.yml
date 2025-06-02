@@ -1,0 +1,84 @@
+workflow:
+  name: $name
+
+stages:
+  - pre-build
+  - build
+  - run
+  - report
+default:
+  tags:
+    - board
+  cache:
+    key: $name
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_FORCE_HTTPS: true
+  GIT_SUBMODULE_PATHS: ":(exclude)benchmarksgame-wasm"
+  semihosted: "false"
+  name: embench
+
+generate-headers:
+  stage: pre-build
+  script:
+    - cd embench-iot
+    - echo $BUILD_CMD | bash
+    - cd -
+    - python3 ./generate-headers.py embench-iot/bd/src/ stm32/src
+  rules:
+    - if: $semihosted == "true"
+      variables:
+        BUILD_CMD: scons --config-dir=examples/wasm32/size/ cc=wasm32-wasi-clang ld=wasm32-wasi-clang user_libs=-lm
+          cflags="-Os -fdata-sections -ffunction-sections -static -DHAVE_BOARDSUPPORT_H"
+          ldflags="-Os -Wl,--allow-undefined,--initial-memory=65536,-gc-sections,-zstack-size=16000,--no-entry,--export=_run,--export=__heap_base,--export=__data_end,--strip-all -static -nolibc -mexec-model=reactor"
+          --binary-extension=.wasm
+    - 
+      variables:
+        BUILD_CMD: scons --config-dir=examples/wasm32/size/ cc=wasm32-wasi-clang ld=wasm32-wasi-clang user_libs=-lm
+          cflags="-Os -fdata-sections -ffunction-sections -static -DHAVE_BOARDSUPPORT_H -Wl,--strip-all,-gc-sections,--no-entry"
+          ldflags="-Os -Wl,--initial-memory=65536,-gc-sections,-zstack-size=16000,--no-entry,--export=_run,--export=__heap_base,--export=__data_end,--export=malloc,--export=free,--strip-all -mexec-model=reactor"
+          --binary-extension=.wasm
+  cache:
+    paths:
+      - embench-iot/bd
+      - stm32/src/benchmarks.h
+
+run-bench:
+  stage: run
+  script:
+    - trap "kill -9 $(jobs -p)" SIGINT SIGTERM EXIT
+    - mkdir stm32/results_$CI_COMMIT_SHORT_SHA
+    - openocd &
+    - sleep 2
+    - cd stm32/l4
+    - mkdir -p build
+    - python3 ../run-benches.py --semihosted=$semihosted --outname=$BENCHNAME --gdb=gdb-multiarch --date=$CI_COMMIT_TIMESTAMP --benches $BENCHNAME --
+      ../../embench-iot/bd/src ../results_$CI_COMMIT_SHORT_SHA embench
+    - kill -9 $(jobs -p)
+    - cd -
+  cache:
+    paths:
+      - embench-iot/bd
+      - stm32/src/benchmarks.h
+  artifacts:
+    paths:
+      - stm32/results_$CI_COMMIT_SHORT_SHA/*
+  parallel:
+    matrix:
+      - BENCHNAME:
+        - aha-mont64
+        - crc32
+  timeout: 5 minutes
+  needs:
+    - generate-headers
+
+aggregate:
+  stage: report
+  needs:
+    - run-bench
+  artifacts:
+    paths:
+      - stm32/results_$CI_COMMIT_SHORT_SHA/final.csv
+  script:
+    - touch stm32/results_$CI_COMMIT_SHORT_SHA/final.csv
+    - find stm32/results_$CI_COMMIT_SHORT_SHA -name "*.csv" -exec cat {} >> stm32/results_$CI_COMMIT_SHORT_SHA/final.csv \;

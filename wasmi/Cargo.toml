@@ -1,0 +1,13 @@
+[workspace]
+
+members = ["staticlib"]
+resolver = "2"
+
+[profile.dev]
+panic = "abort"
+[profile.release]
+panic = "abort"
+strip = true
+opt-level = "z"
+lto = "fat"
+codegen-units = 1

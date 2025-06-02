@@ -1,0 +1,18 @@
+
+embench-semihosted:
+  variables:
+    semihosted: "true"
+    name: embench-semihosted
+  trigger:
+    include: .ci/embench.yml
+    strategy: depend
+  when: manual
+
+embench-standalone:
+  variables:
+    semihosted: "false"
+    name: embench-standalone
+  trigger:
+    strategy: depend
+    include: .ci/embench.yml
+  when: manual

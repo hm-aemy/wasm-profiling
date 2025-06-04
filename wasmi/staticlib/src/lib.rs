@@ -3,14 +3,14 @@
 
 extern crate alloc;
 
+use ::alloc::{ffi::CString, string::ToString};
 use ::core::alloc::GlobalAlloc;
 use ::core::ffi;
 use ::core::panic::PanicInfo;
 use ::core::ptr::null;
-use alloc::ffi::CString;
-use alloc::string::ToString;
+use ::core::slice;
 use spin::mutex::Mutex;
-use wasmi::*;
+use wasmi::{Engine, Error, Instance, Module, Store};
 
 struct CAllocator(Mutex<()>);
 
@@ -22,23 +22,18 @@ extern "C" {
 
 unsafe impl GlobalAlloc for CAllocator {
     unsafe fn alloc(&self, layout: ::core::alloc::Layout) -> *mut u8 {
-        let guard = self.0.lock();
+        let _guard = self.0.lock();
         let size = layout.size();
-        let result = malloc(size) as *mut u8;
-        drop(guard);
-        result
+        malloc(size) as *mut u8
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, _: ::core::alloc::Layout) {
-        let guard = self.0.lock();
+        let _guard = self.0.lock();
         free(ptr as *mut ffi::c_void);
-        drop(guard)
     }
     unsafe fn realloc(&self, ptr: *mut u8, _: ::core::alloc::Layout, new_size: usize) -> *mut u8 {
-        let guard = self.0.lock();
-        let result = realloc(ptr as *mut ffi::c_void, new_size) as *mut u8;
-        drop(guard);
-        result
+        let _guard = self.0.lock();
+        realloc(ptr as *mut ffi::c_void, new_size) as *mut u8
     }
 }
 
@@ -50,48 +45,30 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
+/// Interprets the Wasm bytecode using Wasmi.
+///
+/// # Safety
+///
+/// The caller is responsible to provide valid `input` and `len` parameters
+/// that form the byte sequence of the WebAssembly (Wasm) input.
 #[no_mangle]
-pub extern "C" fn wasm_interp(
+pub unsafe extern "C" fn wasm_interp(
     input: *const ffi::c_uchar,
     len: ffi::c_size_t,
 ) -> *const ffi::c_char {
-    // First step is to create the Wasm execution engine with some config.
-    // In this example we are using the default configuration.
-    let result: Result<i32, wasmi::Error> = (|| {
-        let engine = Engine::default();
-        // Wasmi does not yet support parsing `.wat` so we have to convert
-        // out `.wat` into `.wasm` before we compile and validate it.
-        let module;
-        unsafe {
-            module = Module::new(&engine, ::core::slice::from_raw_parts(input, len))?;
-        }
-
-        // All Wasm objects operate within the context of a `Store`.
-        // Each `Store` has a type parameter to store host-specific data,
-        // which in this case we are using `42` for.
-        type HostState = u32;
-        let mut store = Store::new(&engine, 42);
-
-        // In order to create Wasm module instances and link their imports
-        // and exports we require a `Linker`.
-        let linker = <Linker<HostState>>::new(&engine);
-        // Instantiation of a Wasm module requires defining its imports and then
-        // afterwards we can fetch exports by name, as well as asserting the
-        // type signature of the function with `get_typed_func`.
-        //
-        // Also before using an instance created this way we need to start it.
-        let instance = linker.instantiate(&mut store, &module)?.start(&mut store)?;
-        let hello = instance.get_typed_func::<(), i32>(&store, "_run")?;
-
-        // And finally we can call the wasm!
-        hello.call(&mut store, ())
-    })();
-    if result.is_ok() {
-        null()
-    } else {
-        result
-            .map_err(|e| CString::new(e.to_string()).unwrap().into_raw())
-            .map(|_| null::<ffi::c_char>())
-            .unwrap_err()
+    let wasm = unsafe { slice::from_raw_parts(input, len) };
+    match execute(wasm) {
+        Ok(_result) => null(),
+        Err(error) => CString::new(error.to_string()).unwrap().into_raw(),
     }
+}
+
+fn execute(wasm: &[u8]) -> Result<i32, Error> {
+    let engine = Engine::default();
+    let module: Module = Module::new(&engine, wasm)?;
+    let mut store = Store::new(&engine, ());
+    let instance = Instance::new(&mut store, &module, &[])?;
+    instance
+        .get_typed_func::<(), i32>(&store, "_run")?
+        .call(&mut store, ())
 }

@@ -21,7 +21,7 @@
 	url = https://github.com/I-mikan-I/libopencm3
 [submodule "wasm3/wasm3"]
 	path = wasm3/wasm3
-	url = git@github.com:I-mikan-I/wasm3.git
+	url = https://github.com/I-mikan-I/wasm3
 [submodule "wasm3/embench-iot"]
 	path = wasm3/embench-iot
-	url = git@github.com:I-mikan-I/embench-iot.git
+	url = https://github.com/I-mikan-I/embench-iot

@@ -1,5 +1,4 @@
 [workspace]
-
 members = ["staticlib"]
 resolver = "2"
 
